@@ -1,0 +1,23 @@
+/* Custom override Tailwind */
+
+/* Smooth color transition saat status berubah */
+.slot-card {
+  transition: background-color 200ms ease, border-color 200ms ease;
+}
+
+/* Scrollbar gelap */
+#slot-grid::-webkit-scrollbar {
+  width: 8px;
+}
+#slot-grid::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+#slot-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Avoid flicker pada video stream saat reconnect */
+#video {
+  background-color: #000;
+}

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parking Detection — Dashboard</title>
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-slate-800/80 border-b border-slate-700 sticky top-0 z-10 backdrop-blur">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-emerald-500/20 grid place-items-center">
+          <span class="text-emerald-400 text-xl">P</span>
+        </div>
+        <div>
+          <h1 class="text-lg font-semibold leading-tight">Parking Detection</h1>
+          <p class="text-xs text-slate-400">Tugas Akhir — OpenCV</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-xs">
+        <span id="conn-dot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+        <span id="conn-text" class="text-slate-300">connecting…</span>
+        <a href="/admin" class="hidden sm:inline-block bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-md">Admin</a>
+        <a href="/docs" class="hidden sm:inline-block bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-md">API Docs</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Counter -->
+    <section class="grid grid-cols-3 gap-4">
+      <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+        <p class="text-emerald-300 text-xs uppercase tracking-wider">Free</p>
+        <p id="counter-free" class="text-3xl sm:text-5xl font-bold text-emerald-300">0</p>
+      </div>
+      <div class="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4">
+        <p class="text-rose-300 text-xs uppercase tracking-wider">Full</p>
+        <p id="counter-full" class="text-3xl sm:text-5xl font-bold text-rose-300">0</p>
+      </div>
+      <div class="bg-slate-700/40 border border-slate-600 rounded-xl p-4">
+        <p class="text-slate-300 text-xs uppercase tracking-wider">Total</p>
+        <p id="counter-total" class="text-3xl sm:text-5xl font-bold">0</p>
+      </div>
+    </section>
+
+    <!-- Live + Slot grid -->
+    <section class="grid lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 bg-slate-800 rounded-xl overflow-hidden border border-slate-700">
+        <div class="p-3 flex items-center justify-between border-b border-slate-700">
+          <h2 class="font-semibold">Live CCTV</h2>
+          <span id="fps-text" class="text-xs text-slate-400">FPS: -</span>
+        </div>
+        <div class="aspect-video bg-black">
+          <img id="video" src="/video_feed" class="w-full h-full object-contain" alt="Live CCTV" />
+        </div>
+      </div>
+
+      <div class="bg-slate-800 rounded-xl border border-slate-700">
+        <div class="p-3 flex items-center justify-between border-b border-slate-700">
+          <h2 class="font-semibold">Slot Status</h2>
+          <button id="btn-refresh" class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded">refresh</button>
+        </div>
+        <div id="slot-grid" class="p-3 grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2 max-h-[60vh] overflow-y-auto">
+          <p class="col-span-full text-slate-400 text-sm">Loading…</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chart -->
+    <section class="bg-slate-800 rounded-xl border border-slate-700 p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold">Histori Okupansi</h2>
+        <select id="range-select" class="bg-slate-700 text-sm rounded px-2 py-1">
+          <option value="1h">1 jam</option>
+          <option value="6h">6 jam</option>
+          <option value="24h" selected>24 jam</option>
+          <option value="7d">7 hari</option>
+        </select>
+      </div>
+      <div class="h-64">
+        <canvas id="chart"></canvas>
+      </div>
+    </section>
+
+    <footer class="text-center text-xs text-slate-500 py-4">
+      Sistem Deteksi Slot Parkir berbasis OpenCV — Tugas Akhir
+    </footer>
+  </main>
+
+  <script src="/assets/js/dashboard.js"></script>
+</body>
+</html>
