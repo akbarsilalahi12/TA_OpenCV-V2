@@ -1,8 +1,3 @@
-"""
-Konfigurasi global aplikasi.
-Membaca file .env dan mengeksposnya sebagai objek typed.
-"""
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,13 +10,13 @@ class Settings(BaseSettings):
     )
 
     # === RTSP ===
-    rtsp_url: str = "rtsp://admin:admin@192.168.1.100:554/stream"
+    rtsp_url: str = "rtsp://admin:L2E1141F@10.67.195.205:554/cam/realmonitor?channel=1&subtype=0"
 
     # === Detection ===
     detection_threshold: float = 0.18
     detection_hysteresis_margin: float = 0.04
     ratio_ema_alpha: float = 0.30
-    preprocess_threshold_mode: str = "adaptive"  # adaptive / otsu / manual
+    preprocess_threshold_mode: str = "adaptive"
     preprocess_use_clahe: bool = True
     preprocess_manual_threshold: int = 150
     frame_width: int = 1280
@@ -29,12 +24,21 @@ class Settings(BaseSettings):
     detect_interval_ms: int = 200
     summary_interval_sec: int = 60
 
-    # === MySQL ===
-    mysql_host: str = "localhost"
-    mysql_port: int = 3306
-    mysql_user: str = "parking_user"
-    mysql_password: str = "parking_pass"
-    mysql_database: str = "parking_db"
+    # === Shadow Removal ===
+    remove_shadows: bool = True
+    shadow_v_low: int = 20
+    shadow_v_high: int = 80
+
+    # === Adaptive Threshold (lighting-aware) ===
+    adaptive_threshold_enabled: bool = True
+    adaptive_threshold_min: float = 0.08
+    adaptive_threshold_max: float = 0.35
+
+    # === Morphological Closing ===
+    close_ksize: int = 3
+
+    # === Database (SQLite default, no MySQL needed) ===
+    database_url: str = "sqlite:///parking.db"
 
     # === API ===
     api_host: str = "0.0.0.0"
@@ -44,15 +48,5 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file: str = "logs/app.log"
 
-    @property
-    def database_url(self) -> str:
-        """Build SQLAlchemy connection URL untuk MySQL via PyMySQL."""
-        return (
-            f"mysql+pymysql://{self.mysql_user}:{self.mysql_password}"
-            f"@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
-            f"?charset=utf8mb4"
-        )
 
-
-# Singleton: import settings dari module ini di mana saja butuh.
 settings = Settings()

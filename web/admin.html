@@ -41,12 +41,33 @@
   </main>
 
   <script>
+    let overrides = {};
+
+    function setOverrideBtnState(slotId) {
+      const tr = document.querySelector(`.btn-free[data-id="${slotId}"]`)?.closest?.("tr");
+      if (!tr) return;
+      const hasOverride = overrides[slotId] !== undefined;
+      const status = overrides[slotId];
+      tr.querySelector(".btn-free").classList.toggle("ring-2", hasOverride && status === "FREE");
+      tr.querySelector(".btn-full").classList.toggle("ring-2", hasOverride && status === "FULL");
+      tr.querySelector(".btn-override-clear").classList.toggle("hidden", !hasOverride);
+    }
+
+    async function loadOverrides() {
+      try {
+        const r = await fetch("/api/slots/overrides");
+        const j = await r.json();
+        overrides = j.data || {};
+      } catch { overrides = {}; }
+    }
+
     async function loadSlots() {
+      await loadOverrides();
       const res = await fetch("/api/slots?active_only=false");
       const j = await res.json();
       const tbody = document.getElementById("tbl-slots");
       if (!j.data.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-3 text-slate-400">Belum ada slot.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="py-3 text-slate-400">Belum ada slot.</td></tr>`;
         return;
       }
       tbody.innerHTML = j.data.map(s => `
@@ -58,19 +79,54 @@
               s.status === "FULL" ? "bg-rose-500/20 text-rose-300" :
               "bg-slate-700 text-slate-300"
             }">${s.status ?? "-"}</span>
+            ${overrides[s.id] ? `<span class="ml-1 text-[10px] text-amber-400">(manual)</span>` : ""}
           </td>
           <td class="py-2 pr-2">${s.ratio?.toFixed?.(2) ?? "-"}</td>
           <td class="py-2 pr-2 text-xs text-slate-400">${s.polygon.length} pts</td>
           <td class="py-2 pr-2">${s.is_active ? "✅" : "❌"}</td>
-          <td class="py-2 pr-2 space-x-2">
+          <td class="py-2 pr-2 space-x-1">
             <button data-id="${s.id}" data-active="${s.is_active}" class="btn-toggle bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-xs">
               ${s.is_active ? "Nonaktif" : "Aktifkan"}
             </button>
-            <button data-id="${s.id}" class="btn-del bg-rose-700 hover:bg-rose-600 px-2 py-1 rounded text-xs">Hapus</button>
+            <button data-id="${s.id}" class="btn-free bg-emerald-700 hover:bg-emerald-600 px-2 py-1 rounded text-xs">Bebas</button>
+            <button data-id="${s.id}" class="btn-full bg-rose-700 hover:bg-rose-600 px-2 py-1 rounded text-xs">Penuh</button>
+            <button data-id="${s.id}" class="btn-override-clear bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-xs">Auto</button>
+            <button data-id="${s.id}" class="btn-del bg-rose-900 hover:bg-rose-800 px-2 py-1 rounded text-xs">Hapus</button>
           </td>
         </tr>
       `).join("");
 
+      j.data.forEach(s => setOverrideBtnState(s.id));
+
+      tbody.querySelectorAll(".btn-free").forEach(b => {
+        const sid = parseInt(b.dataset.id);
+        b.addEventListener("click", async () => {
+          await fetch(`/api/slots/${sid}/override`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "FREE" }),
+          });
+          loadSlots();
+        });
+      });
+      tbody.querySelectorAll(".btn-full").forEach(b => {
+        const sid = parseInt(b.dataset.id);
+        b.addEventListener("click", async () => {
+          await fetch(`/api/slots/${sid}/override`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "FULL" }),
+          });
+          loadSlots();
+        });
+      });
+      tbody.querySelectorAll(".btn-override-clear").forEach(b => {
+        const sid = parseInt(b.dataset.id);
+        b.addEventListener("click", async () => {
+          await fetch(`/api/slots/${sid}/override`, { method: "DELETE" });
+          loadSlots();
+        });
+      });
       tbody.querySelectorAll(".btn-del").forEach(b => b.addEventListener("click", async () => {
         if (!confirm("Soft delete slot ini?")) return;
         await fetch(`/api/slots/${b.dataset.id}`, { method: "DELETE" });

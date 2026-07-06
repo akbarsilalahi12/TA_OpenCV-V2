@@ -6,7 +6,8 @@ from __future__ import annotations
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -42,6 +43,14 @@ def list_slots_endpoint(
     slots: List[Slot] = repo.list_slots(session, active_only=active_only)
     items = [_to_out(s) for s in slots]
     return SlotListOut(data=items, total=len(items))
+
+
+@router.get("/overrides", status_code=200)
+def list_manual_overrides(
+    request: Request,
+):
+    loop = request.app.state.detection_loop
+    return {"data": loop.get_manual_overrides()}
 
 
 @router.get("/{slot_id}", response_model=SlotOut)
@@ -103,3 +112,38 @@ def delete_slot_endpoint(
         raise HTTPException(status_code=404, detail="Slot not found")
     session.commit()
     return None
+
+
+class ManualOverrideIn(BaseModel):
+    status: str  # "FREE" | "FULL"
+
+
+@router.post("/{slot_id}/override", status_code=200)
+def set_manual_override(
+    slot_id: int,
+    payload: ManualOverrideIn,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    if payload.status not in ("FREE", "FULL"):
+        raise HTTPException(status_code=400, detail="status must be FREE or FULL")
+    slot = repo.get_slot(session, slot_id)
+    if slot is None:
+        raise HTTPException(status_code=404, detail="Slot not found")
+    loop = request.app.state.detection_loop
+    loop.set_manual_override(slot_id, payload.status)
+    return {"slot_id": slot_id, "manual_status": payload.status}
+
+
+@router.delete("/{slot_id}/override", status_code=200)
+def clear_manual_override(
+    slot_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    loop = request.app.state.detection_loop
+    loop.clear_manual_override(slot_id)
+    return {"slot_id": slot_id, "manual_status": None}
+
+
+

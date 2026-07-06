@@ -21,7 +21,7 @@ import numpy as np
 
 from app.config import settings
 from app.core.detector import DetectionResult, detect_slot
-from app.core.preprocessor import preprocess
+from app.core.preprocessor import preprocess, compute_adaptive_threshold
 from app.db.connection import SessionLocal
 from app.db import repository as repo
 from app.services.rtsp_reader import RTSPReader
@@ -57,6 +57,7 @@ class DetectionLoop:
         self._fps: float = 0.0
         self._ratio_ema: Dict[int, float] = {}
         self._stable_status: Dict[int, str] = {}
+        self._manual_overrides: Dict[int, str] = {}
 
     # -----------------------------
     # Lifecycle
@@ -99,6 +100,15 @@ class DetectionLoop:
 
     def force_reload_slots(self) -> None:
         self._cache_loaded_at = 0.0
+
+    def set_manual_override(self, slot_id: int, status: str) -> None:
+        self._manual_overrides[slot_id] = status
+
+    def clear_manual_override(self, slot_id: int) -> None:
+        self._manual_overrides.pop(slot_id, None)
+
+    def get_manual_overrides(self) -> Dict[int, str]:
+        return dict(self._manual_overrides)
 
     def _smooth_ratio(self, slot_id: int, ratio: float) -> float:
         """Haluskan ratio memakai EMA agar noise frame-to-frame lebih stabil."""
@@ -171,18 +181,38 @@ class DetectionLoop:
                 self._latest_overlay = frame  # tampilkan saja apa adanya
             return
 
-        processed = preprocess(
+        processed, shadow_mask = preprocess(
             frame,
             threshold_value=settings.preprocess_manual_threshold,
             threshold_mode=settings.preprocess_threshold_mode,
             use_clahe=settings.preprocess_use_clahe,
+            remove_shadows=settings.remove_shadows,
+            shadow_v_low=settings.shadow_v_low,
+            shadow_v_high=settings.shadow_v_high,
+            close_ksize=settings.close_ksize,
         )
+
+        actual_threshold = settings.detection_threshold
+        if settings.adaptive_threshold_enabled:
+            actual_threshold = compute_adaptive_threshold(
+                frame,
+                base_threshold=settings.detection_threshold,
+                min_threshold=settings.adaptive_threshold_min,
+                max_threshold=settings.adaptive_threshold_max,
+            )
 
         results: Dict[int, DetectionResult] = {}
         for entry in self._slots_cache:
+            override = self._manual_overrides.get(entry.id)
+            if override is not None:
+                results[entry.id] = DetectionResult(status=override, ratio=1.0)
+                self._stable_status[entry.id] = override
+                continue
             try:
                 raw = detect_slot(
-                    processed, entry.polygon, threshold=settings.detection_threshold
+                    processed, entry.polygon,
+                    threshold=actual_threshold,
+                    shadow_mask=shadow_mask,
                 )
                 smoothed_ratio = self._smooth_ratio(entry.id, raw.ratio)
                 results[entry.id] = self._apply_hysteresis(entry.id, smoothed_ratio)

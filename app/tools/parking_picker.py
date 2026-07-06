@@ -72,6 +72,7 @@ class PickerState:
     def delete_slot(self, idx: int) -> None:
         item = self.slots[idx]
         with SessionLocal() as s:
+            repo.update_slot(s, item["id"], slot_code=f"_DEL_{item['id']}")
             repo.soft_delete_slot(s, item["id"])
             s.commit()
         log.info("Soft-deleted slot %s", item["slot_code"])

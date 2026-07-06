@@ -9,7 +9,6 @@ from typing import List, Optional
 
 from sqlalchemy import (
     JSON,
-    BigInteger,
     DateTime,
     Enum,
     ForeignKey,
@@ -75,7 +74,7 @@ class SlotStatus(Base):
 class OccupancyLog(Base):
     __tablename__ = "occupancy_log"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     slot_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("slots.id", ondelete="CASCADE"), nullable=False
     )
@@ -91,7 +90,7 @@ class OccupancyLog(Base):
 class OccupancySummary(Base):
     __tablename__ = "occupancy_summary"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     snapshot_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     total_slot: Mapped[int] = mapped_column(Integer, nullable=False)
     free_slot: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -101,7 +100,7 @@ class OccupancySummary(Base):
 class SystemEvent(Base):
     __tablename__ = "system_event"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     event_type: Mapped[str] = mapped_column(String(40), nullable=False)
     message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

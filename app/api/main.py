@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.db import repository as repo
-from app.db.connection import SessionLocal
+from app.db.connection import SessionLocal, init_db
 from app.services.detection_loop import DetectionLoop
 from app.services.rtsp_reader import RTSPReader
 from app.services.ws_manager import ws_manager
@@ -44,7 +44,7 @@ log = logging.getLogger("app")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Bind ws manager ke event loop yang sedang aktif.
+    init_db()
     ws_manager.bind_loop(asyncio.get_running_loop())
 
     # Inisialisasi reader + detection loop.

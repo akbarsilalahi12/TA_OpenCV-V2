@@ -1,11 +1,7 @@
-"""
-Detector: hitung status FREE/FULL satu polygon slot pada gambar binerisasi.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Optional
 
 import cv2
 import numpy as np
@@ -19,29 +15,16 @@ SlotStatus = Literal["FREE", "FULL"]
 @dataclass(frozen=True)
 class DetectionResult:
     status: SlotStatus
-    ratio: float  # 0.0 - 1.0
+    ratio: float
+    shadow_ratio: float = 0.0
 
 
 def detect_slot(
     processed: np.ndarray,
     polygon: Polygon,
     threshold: float = 0.18,
+    shadow_mask: Optional[np.ndarray] = None,
 ) -> DetectionResult:
-    """
-    Hitung status satu slot.
-
-    Args:
-        processed: gambar biner uint8 (output preprocessor) shape (H, W).
-        polygon: list titik [[x,y], ...] dalam koordinat frame.
-        threshold: ratio cutoff. ratio < threshold => FREE.
-
-    Returns:
-        DetectionResult(status, ratio).
-
-    Catatan:
-        - Bila area polygon 0 -> dianggap FREE dengan ratio 0.0.
-        - Polygon yang seluruhnya di luar frame -> ratio 0.0 (FREE).
-    """
     if processed is None or processed.ndim != 2:
         raise ValueError("processed harus gambar biner 2D (H, W)")
 
@@ -53,7 +36,6 @@ def detect_slot(
 
     H, W = processed.shape[:2]
 
-    # Clamp ROI ke dalam frame.
     x0, y0 = max(0, x), max(0, y)
     x1, y1 = min(W, x + w), min(H, y + h)
 
@@ -62,19 +44,32 @@ def detect_slot(
 
     roi = processed[y0:y1, x0:x1]
 
-    # Sesuaikan mask dengan area clamp.
     mx0, my0 = x0 - x, y0 - y
     mx1, my1 = mx0 + (x1 - x0), my0 + (y1 - y0)
     sub_mask = mask[my0:my1, mx0:mx1]
 
     if roi.shape != sub_mask.shape:
-        # Safety: kalau ada mismatch, anggap FREE.
         return DetectionResult(status="FREE", ratio=0.0)
 
     masked = cv2.bitwise_and(roi, roi, mask=sub_mask)
     count = int(cv2.countNonZero(masked))
 
-    ratio = count / area
-    status: SlotStatus = "FREE" if ratio < threshold else "FULL"
+    effective_area = area
+    if shadow_mask is not None:
+        shadow_roi = shadow_mask[y0:y1, x0:x1]
+        if shadow_roi.shape[:2] == sub_mask.shape[:2]:
+            shadow_in_poly = cv2.bitwise_and(shadow_roi, shadow_roi, mask=sub_mask)
+            shadow_pixels = int(cv2.countNonZero(shadow_in_poly))
+            effective_area = max(1.0, area - shadow_pixels)
+        else:
+            shadow_pixels = 0
+    else:
+        shadow_pixels = 0
 
-    return DetectionResult(status=status, ratio=float(ratio))
+    ratio = count / area
+    shadow_ratio = shadow_pixels / area if area > 0 else 0.0
+    effective_ratio = count / effective_area if effective_area > 0 else ratio
+
+    status: SlotStatus = "FREE" if effective_ratio < threshold else "FULL"
+
+    return DetectionResult(status=status, ratio=float(ratio), shadow_ratio=float(shadow_ratio))

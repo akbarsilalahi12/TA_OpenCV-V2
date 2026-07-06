@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Sequence
 
 from sqlalchemy import desc, select
-from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -95,16 +95,21 @@ def hard_delete_slot(session: Session, slot_id: int) -> bool:
 def auto_next_slot_code(session: Session, prefix: str = "S") -> str:
     """
     Generate slot_code berikutnya, format S001, S002, ...
+    Mengisi nomor terkecil yg tersedia (reuse gap dari slot yg dihapus).
     """
-    stmt = select(Slot.slot_code).order_by(desc(Slot.id)).limit(1)
-    last = session.scalars(stmt).first()
-    if last and last.startswith(prefix):
-        try:
-            n = int(last[len(prefix):]) + 1
-        except ValueError:
-            n = 1
-    else:
-        n = 1
+    codes = session.scalars(
+        select(Slot.slot_code)
+    ).all()
+    used: set[int] = set()
+    for code in codes:
+        if code.startswith(prefix):
+            try:
+                used.add(int(code[len(prefix):]))
+            except ValueError:
+                pass
+    n = 1
+    while n in used:
+        n += 1
     return f"{prefix}{n:03d}"
 
 
@@ -125,16 +130,16 @@ def upsert_status(
     existing = session.get(SlotStatus, slot_id)
     changed = existing is None or existing.status != status
 
-    stmt = mysql_insert(SlotStatus).values(
-        slot_id=slot_id,
-        status=status,
-        ratio=ratio,
-    )
-    stmt = stmt.on_duplicate_key_update(
-        status=stmt.inserted.status,
-        ratio=stmt.inserted.ratio,
-    )
-    session.execute(stmt)
+    if existing is None:
+        session.execute(
+            sqlite_insert(SlotStatus).values(
+                slot_id=slot_id, status=status, ratio=ratio,
+            )
+        )
+    else:
+        existing.status = status
+        existing.ratio = ratio
+    session.flush()
     return changed
 
 
