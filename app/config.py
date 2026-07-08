@@ -13,9 +13,9 @@ class Settings(BaseSettings):
     rtsp_url: str = "rtsp://admin:L2E1141F@10.67.195.205:554/cam/realmonitor?channel=1&subtype=0"
 
     # === Detection ===
-    detection_threshold: float = 0.18
-    detection_hysteresis_margin: float = 0.04
-    ratio_ema_alpha: float = 0.30
+    detection_threshold: float = 0.10
+    detection_hysteresis_margin: float = 0.01
+    ratio_ema_alpha: float = 0.60
     preprocess_threshold_mode: str = "adaptive"
     preprocess_use_clahe: bool = True
     preprocess_manual_threshold: int = 150

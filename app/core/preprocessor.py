@@ -27,7 +27,7 @@ def preprocess(
     threshold_mode: str = "adaptive",
     use_clahe: bool = True,
     adaptive_block_size: int = 25,
-    adaptive_c: int = 5,
+    adaptive_c: int = 3,
     median_ksize: int = 5,
     dilate_iter: int = 1,
     remove_shadows: bool = True,

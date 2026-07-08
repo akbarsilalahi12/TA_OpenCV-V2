@@ -190,6 +190,7 @@ class DetectionLoop:
             shadow_v_low=settings.shadow_v_low,
             shadow_v_high=settings.shadow_v_high,
             close_ksize=settings.close_ksize,
+            dilate_iter=2,
         )
 
         actual_threshold = settings.detection_threshold
