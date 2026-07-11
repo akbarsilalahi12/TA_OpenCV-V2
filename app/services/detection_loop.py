@@ -118,15 +118,7 @@ class DetectionLoop:
         self._ratio_ema[slot_id] = smoothed
         return smoothed
 
-    def _apply_hysteresis(self, slot_id: int, ratio: float) -> DetectionResult:
-        """
-        Tentukan status dengan hysteresis.
-
-        FREE -> FULL hanya bila ratio melewati threshold atas.
-        FULL -> FREE hanya bila ratio turun melewati threshold bawah.
-        Ini mencegah status berkedip saat ratio berada dekat threshold utama.
-        """
-        threshold = settings.detection_threshold
+    def _apply_hysteresis(self, slot_id: int, ratio: float, threshold: float) -> DetectionResult:
         margin = max(0.0, settings.detection_hysteresis_margin)
         free_threshold = max(0.0, threshold - margin)
         full_threshold = min(1.0, threshold + margin)
@@ -190,7 +182,7 @@ class DetectionLoop:
             shadow_v_low=settings.shadow_v_low,
             shadow_v_high=settings.shadow_v_high,
             close_ksize=settings.close_ksize,
-            dilate_iter=2,
+            dilate_iter=settings.dilate_iterations,
         )
 
         actual_threshold = settings.detection_threshold
@@ -214,9 +206,10 @@ class DetectionLoop:
                     processed, entry.polygon,
                     threshold=actual_threshold,
                     shadow_mask=shadow_mask,
+                    min_object_area=settings.min_object_area,
                 )
                 smoothed_ratio = self._smooth_ratio(entry.id, raw.ratio)
-                results[entry.id] = self._apply_hysteresis(entry.id, smoothed_ratio)
+                results[entry.id] = self._apply_hysteresis(entry.id, smoothed_ratio, actual_threshold)
             except Exception as e:  # pragma: no cover
                 log.warning("detect_slot error slot=%s: %s", entry.code, e)
 

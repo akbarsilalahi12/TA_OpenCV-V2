@@ -8,7 +8,7 @@ import threading
 # =========================
 # RTSP CCTV
 # =========================
-RTSP_URL = "rtsp://admin:L2E1141F@10.67.195.205:554/cam/realmonitor?channel=1&subtype=0"
+RTSP_URL = "rtsp://admin:L2E1141F@10.15.157.205:554/cam/realmonitor?channel=1&subtype=0"
 
 # =========================
 # RTSP READER (auto-reconnect)

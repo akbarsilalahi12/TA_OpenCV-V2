@@ -19,11 +19,26 @@ class DetectionResult:
     shadow_ratio: float = 0.0
 
 
+def _count_significant_pixels(
+    masked: np.ndarray,
+    min_object_area: int = 200,
+) -> int:
+    num_labels, _, stats, _ = cv2.connectedComponentsWithStats(masked, connectivity=8)
+    if num_labels <= 1:
+        return 0
+    return int(sum(
+        stats[i, cv2.CC_STAT_AREA]
+        for i in range(1, num_labels)
+        if stats[i, cv2.CC_STAT_AREA] >= min_object_area
+    ))
+
+
 def detect_slot(
     processed: np.ndarray,
     polygon: Polygon,
     threshold: float = 0.18,
     shadow_mask: Optional[np.ndarray] = None,
+    min_object_area: int = 200,
 ) -> DetectionResult:
     if processed is None or processed.ndim != 2:
         raise ValueError("processed harus gambar biner 2D (H, W)")
@@ -52,7 +67,7 @@ def detect_slot(
         return DetectionResult(status="FREE", ratio=0.0)
 
     masked = cv2.bitwise_and(roi, roi, mask=sub_mask)
-    count = int(cv2.countNonZero(masked))
+    count = _count_significant_pixels(masked, min_object_area)
 
     effective_area = area
     if shadow_mask is not None:

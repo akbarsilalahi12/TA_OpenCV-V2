@@ -50,6 +50,28 @@ def test_degenerate_polygon_is_free():
     assert res.ratio == 0.0
 
 
+def test_noise_filtered_by_min_object_area():
+    img = np.zeros((100, 100), dtype=np.uint8)
+    # 10 tiny speckles (5 px each) = 50 white pixels total, but each blob < 200
+    for y in range(10):
+        img[15 + y * 2, 15:17] = 255
+    res = detect_slot(img, SQUARE, threshold=0.18, min_object_area=200)
+    assert res.status == "FREE"
+    assert res.ratio == 0.0
+
+
+def test_large_blob_detected_despite_noise():
+    img = np.zeros((100, 100), dtype=np.uint8)
+    # Real car: big blob of ~1540 px
+    img[10:30, 10:24] = 255
+    # Noise: tiny specks
+    for y in range(20):
+        img[35 + y, 35:36] = 255
+    res = detect_slot(img, SQUARE, threshold=0.18, min_object_area=200)
+    assert res.status == "FULL"
+    assert res.ratio > 0.3
+
+
 def test_invalid_processed_raises():
     bad = np.zeros((10, 10, 3), dtype=np.uint8)
     with pytest.raises(ValueError):

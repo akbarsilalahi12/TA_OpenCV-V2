@@ -10,12 +10,12 @@ class Settings(BaseSettings):
     )
 
     # === RTSP ===
-    rtsp_url: str = "rtsp://admin:L2E1141F@10.67.195.205:554/cam/realmonitor?channel=1&subtype=0"
+    rtsp_url: str = "rtsp://admin:L2E1141F@10.15.157.205:554/cam/realmonitor?channel=1&subtype=0"
 
     # === Detection ===
-    detection_threshold: float = 0.10
-    detection_hysteresis_margin: float = 0.01
-    ratio_ema_alpha: float = 0.60
+    detection_threshold: float = 0.18
+    detection_hysteresis_margin: float = 0.03
+    ratio_ema_alpha: float = 0.70
     preprocess_threshold_mode: str = "adaptive"
     preprocess_use_clahe: bool = True
     preprocess_manual_threshold: int = 150
@@ -31,11 +31,15 @@ class Settings(BaseSettings):
 
     # === Adaptive Threshold (lighting-aware) ===
     adaptive_threshold_enabled: bool = True
-    adaptive_threshold_min: float = 0.08
+    adaptive_threshold_min: float = 0.24
     adaptive_threshold_max: float = 0.35
 
-    # === Morphological Closing ===
+    # === Morphological ===
     close_ksize: int = 3
+    dilate_iterations: int = 1
+
+    # === Noise Filter ===
+    min_object_area: int = 200
 
     # === Database (SQLite default, no MySQL needed) ===
     database_url: str = "sqlite:///parking.db"
