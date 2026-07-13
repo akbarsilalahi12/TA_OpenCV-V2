@@ -10,28 +10,29 @@ class Settings(BaseSettings):
     )
 
     # === RTSP ===
-    rtsp_url: str = "rtsp://admin:L2E1141F@10.15.157.205:554/cam/realmonitor?channel=1&subtype=0"
+    rtsp_url: str = "rtsp://admin:L2E1141F@10.134.84.205:554/cam/realmonitor?channel=1&subtype=0"
 
     # === Detection ===
-    detection_threshold: float = 0.18
+    detection_threshold: float = 0.22
     detection_hysteresis_margin: float = 0.03
     ratio_ema_alpha: float = 0.70
     preprocess_threshold_mode: str = "adaptive"
     preprocess_use_clahe: bool = True
     preprocess_manual_threshold: int = 150
+    preprocess_adaptive_c: int = 7
     frame_width: int = 1280
     frame_height: int = 720
     detect_interval_ms: int = 200
     summary_interval_sec: int = 60
 
     # === Shadow Removal ===
-    remove_shadows: bool = True
-    shadow_v_low: int = 20
-    shadow_v_high: int = 80
+    remove_shadows: bool = False
+    shadow_v_low: int = 0
+    shadow_v_high: int = 45
 
     # === Adaptive Threshold (lighting-aware) ===
     adaptive_threshold_enabled: bool = True
-    adaptive_threshold_min: float = 0.24
+    adaptive_threshold_min: float = 0.20
     adaptive_threshold_max: float = 0.35
 
     # === Morphological ===

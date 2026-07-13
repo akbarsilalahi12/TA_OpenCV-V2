@@ -178,6 +178,7 @@ class DetectionLoop:
             threshold_value=settings.preprocess_manual_threshold,
             threshold_mode=settings.preprocess_threshold_mode,
             use_clahe=settings.preprocess_use_clahe,
+            adaptive_c=settings.preprocess_adaptive_c,
             remove_shadows=settings.remove_shadows,
             shadow_v_low=settings.shadow_v_low,
             shadow_v_high=settings.shadow_v_high,
