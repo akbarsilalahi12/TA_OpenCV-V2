@@ -9,10 +9,9 @@ Panduan setup sistem dari nol di Windows 10/11 (atau Ubuntu 22.04).
 | Software | Versi | Cara install |
 |---|---|---|
 | Python | 3.10 / 3.11 | https://www.python.org/downloads/ |
-| MySQL Server | 8.0 | https://dev.mysql.com/downloads/installer/ atau XAMPP |
 | Git | latest | https://git-scm.com/ |
-| (opsional) MySQL Workbench | latest | untuk demo data |
 
+> **Tidak perlu MySQL** — sistem menggunakan SQLite (built-in Python).
 > Saat install Python, centang **"Add Python to PATH"**.
 
 ---
@@ -43,70 +42,40 @@ pip install -r requirements.txt
 
 Verifikasi:
 ```bash
-python -c "import cv2, fastapi, sqlalchemy, pymysql; print('OK')"
+python -c "import cv2, fastapi, sqlalchemy; print('OK')"
 ```
 
 ---
 
-## 4. Setup MySQL
+## 4. Database
 
-Login MySQL sebagai root:
+**Tidak perlu setup database manual.** SQLite (`parking.db`) dibuat otomatis saat server pertama kali dijalankan.
 
-```bash
-mysql -u root -p
+Tabel yang akan dibuat:
+```
+occupancy_log
+occupancy_summary
+slot_status
+slots
+system_event
 ```
 
-Lalu jalankan:
-
-```sql
-SOURCE app/db/schema.sql;
-
-CREATE USER IF NOT EXISTS 'parking_user'@'localhost' IDENTIFIED BY 'parking_pass';
-GRANT SELECT, INSERT, UPDATE, DELETE ON parking_db.* TO 'parking_user'@'localhost';
-FLUSH PRIVILEGES;
-
-USE parking_db;
-SHOW TABLES;
-```
-
-Output yang diharapkan:
-```
-+----------------------+
-| Tables_in_parking_db |
-+----------------------+
-| occupancy_log        |
-| occupancy_summary    |
-| slot_status          |
-| slots                |
-| system_event         |
-+----------------------+
-```
+Untuk reset database, cukup hapus file `parking.db`.
 
 ---
 
 ## 5. Konfigurasi `.env`
 
-```bash
-# Windows
-copy .env.example .env
-
-# Linux / macOS
-cp .env.example .env
-```
-
-Edit `.env` sesuai konfigurasi lokal:
+Buat file `.env` di root proyek (copy dari template jika ada):
 
 ```env
 RTSP_URL=rtsp://admin:PASSWORD_ANDA@IP_CCTV:554/cam/realmonitor?channel=1&subtype=0
 
-MYSQL_HOST=localhost
-MYSQL_USER=parking_user
-MYSQL_PASSWORD=parking_pass
-MYSQL_DATABASE=parking_db
-
-DETECTION_THRESHOLD=0.18
+DETECTION_THRESHOLD=0.22
 API_HOST=0.0.0.0
 API_PORT=8000
+
+DATABASE_URL=sqlite:///parking.db
 ```
 
 ---
@@ -126,10 +95,10 @@ isOpened True
 
 ## 7. (Opsional) Migrasi Polygon Lama
 
-Jika sudah punya file `CarParkPos` (pickle) dari prototipe lama:
+Jika sudah punya file `carParkPos` (pickle) dari prototipe lama:
 
 ```bash
-python -m app.tools.migrate_pickle_to_mysql CarParkPos
+python -m app.tools.migrate_pickle_to_mysql carParkPos
 ```
 
 ---
@@ -193,24 +162,24 @@ http://localhost:8000/docs
 pytest
 ```
 
-Output:
+Output (jumlah test dapat berbeda):
 ```
 ================ test session starts ================
-collected 16 items
+collected 15 items
 
-tests/test_detector.py ......                  [ 37%]
-tests/test_geometry.py .....                    [ 68%]
-tests/test_preprocessor.py .....                [100%]
-================ 16 passed in 1.2s ==================
+tests/test_detector.py ......                  [ 40%]
+tests/test_geometry.py .....                    [ 73%]
+tests/test_preprocessor.py ....                 [100%]
+================ 15 passed in 1.2s ==================
 ```
 
 ---
 
 ## 12. Troubleshoot
 
-### MySQL connection refused
-- Pastikan MySQL service jalan: `services.msc` (Windows) atau `systemctl status mysql` (Linux)
-- Cek port 3306 tidak diblok firewall
+### Database error
+- Hapus file `parking.db` untuk reset database
+- Pastikan folder root proyek writable
 
 ### `ModuleNotFoundError: No module named 'cv2'`
 - Aktifkan venv dulu: `venv\Scripts\activate`
@@ -234,7 +203,12 @@ tests/test_preprocessor.py .....                [100%]
 
 ### Status semua FULL atau semua FREE
 - Tuning `DETECTION_THRESHOLD` di `.env` (coba 0.15 / 0.18 / 0.22)
+- Coba enable adaptive threshold: `ADAPTIVE_THRESHOLD_ENABLED=true`
 - Pastikan polygon dibuat di area slot yang benar
+
+### Override tidak bekerja
+- Pastikan menggunakan method POST/DELETE yang benar
+- Override hanya disimpan di memori (hilang saat server restart)
 
 ---
 

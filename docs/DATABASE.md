@@ -1,6 +1,6 @@
 # DATABASE
 
-Skema database MySQL untuk sistem deteksi slot parkir.
+Skema database SQLite untuk sistem deteksi slot parkir.
 
 ---
 
@@ -8,13 +8,11 @@ Skema database MySQL untuk sistem deteksi slot parkir.
 
 | Item | Nilai |
 |---|---|
-| RDBMS | MySQL 8.0 (atau MariaDB 10.6+) |
-| Database name | `parking_db` |
-| Charset | `utf8mb4` |
-| Collation | `utf8mb4_unicode_ci` |
-| Engine tabel | InnoDB |
-| Driver Python | PyMySQL + cryptography |
+| RDBMS | SQLite 3 (built-in Python) |
+| Database file | `parking.db` (auto-generated) |
+| Driver Python | sqlite3 (stdlib) |
 | ORM | SQLAlchemy 2.x |
+| No setup required | Database dibuat otomatis saat pertama kali `run_server.py` dijalankan |
 
 ---
 
@@ -68,7 +66,6 @@ Skema database MySQL untuk sistem deteksi slot parkir.
 │    free_slot         │    │    created_at    │
 │    full_slot         │    └──────────────────┘
 └──────────────────────┘
-   (standalone)              (standalone)
 ```
 
 Relasi:
@@ -79,89 +76,51 @@ Relasi:
 
 ---
 
-## 4. DDL Lengkap (`schema.sql`)
+## 4. DDL (SQLAlchemy ORM)
 
-```sql
--- =========================================================
--- Database
--- =========================================================
-CREATE DATABASE IF NOT EXISTS parking_db
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
+Tabel dibuat otomatis oleh `init_db()` saat server start. Tidak perlu menjalankan DDL manual. Berikut mapping ORM-nya:
 
-USE parking_db;
+```python
+class Slot(Base):
+    __tablename__ = "slots"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    slot_code = Column(String(20), unique=True, nullable=False)
+    polygon_json = Column(JSON, nullable=False)
+    is_active = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, server_default=func.current_timestamp())
+    updated_at = Column(DateTime, server_default=func.current_timestamp(),
+                        server_onupdate=func.current_timestamp())
 
--- =========================================================
--- Tabel: slots
--- Master polygon slot parkir
--- =========================================================
-CREATE TABLE IF NOT EXISTS slots (
-    id            INT AUTO_INCREMENT PRIMARY KEY,
-    slot_code     VARCHAR(20)  NOT NULL UNIQUE,
-    polygon_json  JSON         NOT NULL,
-    is_active     TINYINT(1)   NOT NULL DEFAULT 1,
-    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_active (is_active)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+class SlotStatus(Base):
+    __tablename__ = "slot_status"
+    slot_id = Column(Integer, ForeignKey("slots.id", ondelete="CASCADE"), primary_key=True)
+    status = Column(Enum("FREE", "FULL"), nullable=False)
+    ratio = Column(Numeric(5, 3), nullable=True)
+    updated_at = Column(DateTime, server_default=func.current_timestamp(),
+                        server_onupdate=func.current_timestamp())
 
--- =========================================================
--- Tabel: slot_status
--- Status terkini tiap slot (di-upsert tiap deteksi)
--- =========================================================
-CREATE TABLE IF NOT EXISTS slot_status (
-    slot_id     INT PRIMARY KEY,
-    status      ENUM('FREE','FULL') NOT NULL,
-    ratio       DECIMAL(5,3) NULL,
-    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-                          ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_status_slot
-        FOREIGN KEY (slot_id) REFERENCES slots(id)
-        ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+class OccupancyLog(Base):
+    __tablename__ = "occupancy_log"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    slot_id = Column(Integer, ForeignKey("slots.id", ondelete="CASCADE"), nullable=False)
+    status = Column(Enum("FREE", "FULL"), nullable=False)
+    ratio = Column(Numeric(5, 3), nullable=True)
+    detected_at = Column(DateTime, server_default=func.current_timestamp())
 
--- =========================================================
--- Tabel: occupancy_log
--- Log historis perubahan status (insert hanya saat status BERUBAH)
--- =========================================================
-CREATE TABLE IF NOT EXISTS occupancy_log (
-    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
-    slot_id       INT NOT NULL,
-    status        ENUM('FREE','FULL') NOT NULL,
-    ratio         DECIMAL(5,3) NULL,
-    detected_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_slot_time (slot_id, detected_at),
-    INDEX idx_time (detected_at),
-    CONSTRAINT fk_log_slot
-        FOREIGN KEY (slot_id) REFERENCES slots(id)
-        ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+class OccupancySummary(Base):
+    __tablename__ = "occupancy_summary"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    snapshot_at = Column(DateTime, nullable=False)
+    total_slot = Column(Integer, nullable=False)
+    free_slot = Column(Integer, nullable=False)
+    full_slot = Column(Integer, nullable=False)
 
--- =========================================================
--- Tabel: occupancy_summary
--- Snapshot agregat (insert tiap N detik / N menit)
--- =========================================================
-CREATE TABLE IF NOT EXISTS occupancy_summary (
-    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
-    snapshot_at  DATETIME NOT NULL,
-    total_slot   INT NOT NULL,
-    free_slot    INT NOT NULL,
-    full_slot    INT NOT NULL,
-    INDEX idx_time (snapshot_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- =========================================================
--- Tabel: system_event
--- Audit event sistem (opsional)
--- =========================================================
-CREATE TABLE IF NOT EXISTS system_event (
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    event_type  VARCHAR(40) NOT NULL,
-    message     TEXT,
-    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_type_time (event_type, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+class SystemEvent(Base):
+    __tablename__ = "system_event"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event_type = Column(String(40), nullable=False)
+    message = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.current_timestamp())
 ```
 
 ---
@@ -173,10 +132,10 @@ Master polygon slot parkir, menggantikan file pickle `carParkPos`.
 
 | Kolom | Tipe | Catatan |
 |---|---|---|
-| `id` | INT PK | Auto increment |
-| `slot_code` | VARCHAR(20) UNIQUE | Kode label, mis. `A1`, `A2`, `B1`. Auto-generate saat picker tambah polygon |
-| `polygon_json` | JSON | Format `[[x,y],[x,y],[x,y],[x,y]]` (4 titik) |
-| `is_active` | TINYINT(1) | Soft delete: `0` = nonaktif, `1` = aktif |
+| `id` | INTEGER PK | Auto increment |
+| `slot_code` | VARCHAR(20) UNIQUE | Kode label, mis. `A1`, `A2`, `S001`. Auto-generate saat picker tambah polygon |
+| `polygon_json` | JSON (text) | Format `[[x,y],[x,y],[x,y],[x,y]]` |
+| `is_active` | INTEGER | Soft delete: `0` = nonaktif, `1` = aktif |
 | `created_at` / `updated_at` | DATETIME | Audit timestamp |
 
 Contoh isi `polygon_json`:
@@ -185,13 +144,13 @@ Contoh isi `polygon_json`:
 ```
 
 ### 5.2 `slot_status`
-Selalu tepat 1 row per slot. Di-upsert oleh detection loop.
+Selalu tepat 1 row per slot. Di-upsert oleh detection loop dengan SQLite `INSERT ... ON CONFLICT`.
 
 | Kolom | Tipe | Catatan |
 |---|---|---|
-| `slot_id` | INT PK FK | Sekaligus FK ke `slots.id` |
-| `status` | ENUM | `FREE` atau `FULL` |
-| `ratio` | DECIMAL(5,3) | Rasio piksel non-zero (0.000 – 1.000) untuk debugging |
+| `slot_id` | INTEGER PK FK | Sekaligus FK ke `slots.id` |
+| `status` | TEXT CHECK | `FREE` atau `FULL` (via Enum) |
+| `ratio` | NUMERIC(5,3) | Rasio piksel non-zero (0.000 – 1.000) untuk debugging |
 | `updated_at` | DATETIME | Auto update |
 
 ### 5.3 `occupancy_log`
@@ -200,7 +159,7 @@ Insert **hanya saat status berubah** (FREE→FULL atau sebaliknya). Bukan tiap f
 Estimasi volume: 50 slot × 20 perubahan/hari = ~1000 row/hari → ringan.
 
 ### 5.4 `occupancy_summary`
-Insert tiap interval (mis. 60 detik) dari detection loop. Dipakai oleh Chart.js di dashboard.
+Insert tiap interval (default 60 detik) dari detection loop. Dipakai oleh Chart.js di dashboard.
 
 Estimasi: 1440 row/hari (per menit) → ringan, mudah di-query untuk grafik.
 
@@ -214,35 +173,19 @@ Catatan event sistem untuk audit. Contoh `event_type`:
 
 ---
 
-## 6. Setup Database (Langkah)
+## 6. Setup Database
 
-```sql
--- 1. Login MySQL sebagai root
---    mysql -u root -p
+Database **tidak perlu setup manual**. SQLite `parking.db` dibuat otomatis saat pertama kali menjalankan server:
 
--- 2. Jalankan schema
-SOURCE app/db/schema.sql;
-
--- 3. Buat user khusus aplikasi (jangan pakai root!)
-CREATE USER 'parking_user'@'localhost' IDENTIFIED BY 'parking_pass';
-
-GRANT SELECT, INSERT, UPDATE, DELETE
-  ON parking_db.*
-  TO 'parking_user'@'localhost';
-
-FLUSH PRIVILEGES;
-
--- 4. Verifikasi
-SHOW DATABASES;
-USE parking_db;
-SHOW TABLES;
+```bash
+python run_server.py
 ```
 
-Update `.env`:
+File database akan muncul di root proyek (`parking.db`). Untuk reset, cukup hapus file tersebut.
+
+Update `.env` bila ingin lokasi kustom:
 ```env
-MYSQL_USER=parking_user
-MYSQL_PASSWORD=parking_pass
-MYSQL_DATABASE=parking_db
+DATABASE_URL=sqlite:///parking.db
 ```
 
 ---
@@ -313,30 +256,12 @@ GROUP BY slot_id;
 
 ---
 
-## 8. Migrasi dari File Pickle ke MySQL
+## 8. Migrasi dari File Pickle ke SQLite
 
 Script one-shot di `app/tools/migrate_pickle_to_mysql.py`:
 
-```python
-import pickle, json
-from app.db.connection import SessionLocal
-from app.db.models import Slot
-
-with open("CarParkPos", "rb") as f:
-    pos_list = pickle.load(f)
-
-session = SessionLocal()
-for i, polygon in enumerate(pos_list, start=1):
-    slot = Slot(
-        slot_code=f"S{i:03d}",
-        polygon_json=json.dumps(polygon),
-        is_active=1,
-    )
-    session.add(slot)
-
-session.commit()
-session.close()
-print(f"Migrated {len(pos_list)} slots")
+```bash
+python -m app.tools.migrate_pickle_to_mysql CarParkPos
 ```
 
 Setelah migrasi sukses, file pickle bisa diarsipkan/hapus.
@@ -345,12 +270,14 @@ Setelah migrasi sukses, file pickle bisa diarsipkan/hapus.
 
 ## 9. Backup & Restore
 
+Cukup copy file `parking.db`:
+
 ```bash
 # Backup
-mysqldump -u root -p parking_db > parking_db_backup.sql
+copy parking.db parking.db.backup
 
 # Restore
-mysql -u root -p parking_db < parking_db_backup.sql
+copy parking.db.backup parking.db
 ```
 
 ---

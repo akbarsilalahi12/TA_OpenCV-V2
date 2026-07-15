@@ -36,7 +36,7 @@ Membangun **sistem terintegrasi lokal** yang terdiri dari:
 
 | | Detail |
 |---|---|
-| CCTV | Dahua, RTSP H.264, IP `192.168.18.155` |
+| CCTV | Dahua, RTSP H.264 |
 | Resolusi proses | 1280×720 |
 | Metode | Image processing klasik (grayscale → blur → threshold → morfologi → polygon ratio) |
 | Akurasi target | ≥ 90% pada kondisi pencahayaan normal (siang) |
@@ -98,9 +98,8 @@ Membangun **sistem terintegrasi lokal** yang terdiri dari:
 | Computer Vision | **OpenCV 4.10** | Sudah dipakai, ringan |
 | Backend | **FastAPI 0.115** | Async native, auto Swagger UI |
 | ASGI server | **Uvicorn** | Standar FastAPI |
-| Database | **MySQL 8** | Sesuai permintaan, RDBMS populer |
+| Database | **SQLite 3** (built-in) | Zero setup, file-based, cukup untuk single-PC |
 | ORM | **SQLAlchemy 2.x** | Mature, type-safe |
-| Driver MySQL | **PyMySQL + cryptography** | Pure Python, no compile |
 | Realtime | **WebSocket** (built-in FastAPI) | Push status ke browser |
 | Streaming video | **MJPEG over HTTP** | Simpel, langsung jalan di `<img>` |
 | Frontend | **Vanilla JS + Tailwind CDN + Chart.js** | No build tool, cepat |
@@ -112,7 +111,7 @@ Membangun **sistem terintegrasi lokal** yang terdiri dari:
 | Topik | Keputusan | Catatan |
 |---|---|---|
 | Deployment | Lokal (single PC) | Akses LAN |
-| Database | MySQL 8 | Migrasi polygon dari pickle ke tabel `slots` |
+| Database | SQLite | Zero setup, file-based, auto-create |
 | Frontend | Vanilla JS + Tailwind CDN | Tidak butuh Node.js |
 | Picker polygon | Desktop window (refactor existing) | Cepat, sudah ada base-nya |
 | Metode deteksi | OpenCV klasik (no ML) | YOLOv8 opsional di iterasi berikutnya |
@@ -141,7 +140,7 @@ Sistem dianggap selesai bila:
 - [ ] Dashboard menampilkan live video + counter + grid + chart
 - [ ] Status berubah di dashboard < 1 detik setelah perubahan riil
 - [ ] Dashboard bisa dibuka dari HP di Wi-Fi yang sama
-- [ ] Polygon tersimpan di MySQL (bukan pickle lagi)
+- [ ] Polygon tersimpan di SQLite (bukan pickle lagi)
 - [ ] Semua file dokumentasi di `docs/` lengkap
 - [ ] Diagram (block, flowchart, ERD, use case) tersedia
 - [ ] Repo Git bersih, `.env` tidak ter-commit, ada `README.md`

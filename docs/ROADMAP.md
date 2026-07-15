@@ -12,7 +12,7 @@ Timeline pengerjaan dari prototipe `main.py` ke sistem terintegrasi.
 |---|---|---|---|
 | 0 | Setup environment | 0.5 hari | Tools siap (Python, MySQL, Git) |
 | 1 | Refactor core | 1 hari | `app/core/` lulus unit test |
-| 2 | Database layer | 1 hari | MySQL + ORM + migrasi pickle |
+| 2 | Database layer | 1 hari | SQLite + ORM + migrasi pickle |
 | 3 | Service & detection loop | 1 hari | Pipeline berjalan headless |
 | 4 | Backend API (FastAPI) | 1.5 hari | REST + MJPEG + WebSocket |
 | 5 | Web dashboard | 2 hari | Halaman live + chart |
@@ -58,15 +58,14 @@ Timeline pengerjaan dari prototipe `main.py` ke sistem terintegrasi.
 
 ### Fase 2 — Database Layer (1 hari)
 
-**Tujuan:** MySQL sudah siap menyimpan polygon & status.
+**Tujuan:** SQLite siap menyimpan polygon & status.
 
 **Tugas:**
-- [ ] Buat `app/db/connection.py` (SQLAlchemy engine + session factory)
+- [ ] Buat `app/db/connection.py` (SQLAlchemy engine + session factory, SQLite)
 - [ ] Buat `app/db/models.py` untuk 5 tabel (`Slot`, `SlotStatus`, `OccupancyLog`, `OccupancySummary`, `SystemEvent`)
 - [ ] Buat `app/db/repository.py` (helper: `get_active_slots`, `upsert_status`, `log_change`, `insert_summary`)
-- [ ] Simpan DDL di `app/db/schema.sql`
 - [ ] Buat `app/tools/migrate_pickle_to_mysql.py` untuk import data lama
-- [ ] Verifikasi: jalankan migrasi, lalu `SELECT * FROM slots` di MySQL Workbench
+- [ ] Verifikasi: jalankan migrasi, lalu `SELECT * FROM slots`
 
 **Definition of Done:** data dari `CarParkPos` (pickle) sudah ada di tabel `slots`.
 
@@ -223,7 +222,7 @@ Fase 6 (picker) bisa dikerjakan paralel dengan Fase 5 karena sudah punya layer D
 
 | Risiko | Probabilitas | Buffer |
 |---|---|---|
-| MySQL setup bermasalah | Sedang | +0.5 hari di Fase 0 |
+| Database setup | Rendah | SQLite, zero setup |
 | RTSP intermittent | Sedang | +0.5 hari di Fase 3 (auto-reconnect tuning) |
 | Threshold tidak akurat di malam hari | Tinggi | +0.5 hari di Fase 7 |
 | Mobile layout pecah | Rendah | +0.5 hari di Fase 5 |

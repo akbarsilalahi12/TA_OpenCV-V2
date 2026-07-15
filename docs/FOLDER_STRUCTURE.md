@@ -22,7 +22,7 @@ TA_OpenCV/
 │   ├── services/                       # Orchestration & I/O long-running
 │   │   ├── __init__.py
 │   │   ├── rtsp_reader.py              # Thread baca RTSP + auto-reconnect
-│   │   ├── detection_loop.py           # Pipeline utama
+│   │   ├── detection_loop.py           # Pipeline utama (EMA + hysteresis + override)
 │   │   ├── frame_broadcaster.py        # MJPEG generator (encode + overlay)
 │   │   └── ws_manager.py               # WebSocket connection manager
 │   │
@@ -30,7 +30,7 @@ TA_OpenCV/
 │   │   ├── __init__.py
 │   │   ├── main.py                     # FastAPI app + lifespan + mount static
 │   │   ├── schemas.py                  # Pydantic models (SlotIn, SlotOut, ...)
-│   │   ├── routes_slots.py             # /api/slots CRUD
+│   │   ├── routes_slots.py             # /api/slots CRUD + manual override
 │   │   ├── routes_video.py             # /video_feed MJPEG
 │   │   ├── routes_history.py           # /api/history, /api/summary
 │   │   ├── routes_status.py            # /api/status, /health
@@ -38,78 +38,62 @@ TA_OpenCV/
 │   │
 │   ├── db/                             # Persistence layer
 │   │   ├── __init__.py
-│   │   ├── connection.py               # SQLAlchemy engine + SessionLocal
+│   │   ├── connection.py               # SQLAlchemy engine + SessionLocal (SQLite)
 │   │   ├── models.py                   # ORM: Slot, SlotStatus, OccupancyLog, ...
-│   │   ├── repository.py               # CRUD high-level functions
-│   │   └── schema.sql                  # Raw DDL untuk import manual
+│   │   └── repository.py               # CRUD high-level functions
 │   │
 │   └── tools/                          # Standalone utilities
 │       ├── __init__.py
 │       ├── parking_picker.py           # Refactor ParkingSpacePicker.py
-│       └── migrate_pickle_to_mysql.py  # One-shot migration
+│       ├── migrate_pickle_to_mysql.py  # One-shot migration pickle → DB
+│       └── calibrate_threshold.py      # Tool tuning threshold interaktif
 │
 ├── web/                                # Frontend statis (no build tool)
 │   ├── index.html                      # Dashboard utama
 │   ├── admin.html                      # Halaman admin (opsional)
 │   ├── css/
-│   │   └── style.css                   # Custom override Tailwind
+│   │   └── style.css                   # Custom override Tailwind (+ .btn-override)
 │   └── js/
-│       ├── dashboard.js                # Logic dashboard (fetch + WS)
-│       ├── admin.js                    # Logic admin
-│       └── chart.js                    # Setup Chart.js
+│       └── dashboard.js                # Logic dashboard (fetch + WS + overrides)
 │
-├── data/                               # Data lokal (di-gitignore sebagian)
-│   ├── CarParkPos                      # File pickle lama (untuk migrasi)
-│   └── samples/                        # Frame sampel untuk unit test
-│       ├── empty_slot.jpg
-│       └── full_slot.jpg
+├── dataset/                            # Dataset PKLot untuk pengujian akurasi
+│   ├── pklot/                          # Folder dataset PKLot
+│   ├── ground_truth.json               # Ground truth labels
+│   ├── polygons.json                   # Polygon definitions
+│   └── finalize_dataset.py             # Script finalisasi dataset
 │
 ├── docs/                               # Dokumentasi proyek
 │   ├── PLANNING.md                     # Dokumen induk perencanaan
 │   ├── REQUIREMENTS.md                 # FR + NFR
 │   ├── ARCHITECTURE.md                 # Diagram & breakdown modul
-│   ├── DATABASE.md                     # Skema MySQL + ERD + query
+│   ├── DATABASE.md                     # Skema SQLite + ERD + query
 │   ├── API.md                          # Spesifikasi REST + WebSocket
 │   ├── ROADMAP.md                      # Timeline pengerjaan
 │   ├── FOLDER_STRUCTURE.md             # File ini
-│   ├── INSTALL.md                      # Panduan instalasi (TBD)
-│   ├── USER_MANUAL.md                  # Panduan pemakaian (TBD)
-│   ├── TESTING.md                      # Hasil pengujian akurasi (TBD)
-│   └── diagrams/
-│       ├── system_architecture.png
-│       ├── flowchart_detection.png
-│       ├── use_case.png
-│       ├── erd.png
-│       └── sequence_video.png
-│
+│   ├── INSTALL.md                      # Panduan instalasi
+│   ├── README.md                       # Index dokumentasi
+├──
 ├── tests/                              # Unit & integration tests
 │   ├── __init__.py
-│   ├── conftest.py                     # Fixture pytest
 │   ├── test_preprocessor.py
 │   ├── test_detector.py
-│   ├── test_geometry.py
-│   └── test_repository.py
+│   └── test_geometry.py
 │
 ├── logs/                               # Log runtime (di-gitignore)
 │   └── app.log
 │
-├── legacy/                             # Kode lama (arsip, opsional)
-│   ├── main.py                         # Backup main.py awal
-│   └── ParkingSpacePicker.py           # Backup picker awal
-│
 ├── .env                                # Konfigurasi (DI-GITIGNORE!)
-├── .env.example                        # Template config
 ├── .gitignore
 ├── .python-version                     # Pin Python 3.11 (untuk pyenv)
 ├── requirements.txt                    # Dependency Python
 ├── pytest.ini                          # Config pytest
-├── ruff.toml                           # Config linter
 ├── README.md                           # Overview proyek + quickstart
-├── LICENSE
-│
+├──
+├── parking.db                          # SQLite database (auto-generated)
 ├── run_server.py                       # Entry: python run_server.py
 ├── run_engine.py                       # Entry: detection only (headless)
-└── run_picker.py                       # Entry: tool kalibrasi polygon
+├── run_picker.py                       # Entry: tool kalibrasi polygon
+└── test.py                             # Prototipe testing cepat
 ```
 
 ---
@@ -128,10 +112,13 @@ Seluruh source code Python aplikasi. Dipecah berdasarkan **layer arsitektur** (l
 | `tools/` | CLI/Desktop | Script standalone |
 
 ### `web/`
-Frontend statis. **Tidak butuh Node.js**. Dilayani langsung oleh FastAPI via `StaticFiles`.
+Frontend statis. **Tidak butuh Node.js**. Dilayani langsung oleh FastAPI via `StaticFiles` di path `/assets`.
+
+### `dataset/`
+Dataset PKLot untuk pengujian akurasi deteksi. Berisi ground truth, polygon definitions, dan script finalisasi.
 
 ### `data/`
-Data lokal: file pickle warisan, frame sample untuk test. Tabel utama tetap di MySQL.
+Data lokal: file pickle warisan, frame sample untuk test. Tabel utama tetap di SQLite.
 
 ### `docs/`
 Semua dokumentasi proyek. Ditulis Markdown agar mudah dibaca di GitHub maupun VS Code.
@@ -142,8 +129,8 @@ Unit & integration test. Mengikuti konvensi `test_*.py` agar `pytest` auto-disco
 ### `logs/`
 Output log runtime (`app.log`, dll). Di-`.gitignore`.
 
-### `legacy/`
-Arsip kode awal (`main.py`, `ParkingSpacePicker.py`). Dipertahankan untuk perbandingan & dokumentasi laporan TA.
+### `parking.db`
+Database SQLite — auto-generated saat pertama `run_server.py` dijalankan. Tidak perlu setup MySQL.
 
 ---
 
@@ -171,34 +158,11 @@ if __name__ == "__main__":
 
 ---
 
-## 4. `.gitignore` yang Disarankan
+## 4. Catatan
 
-```gitignore
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-venv/
-.env
-
-# IDE
-.vscode/
-.idea/
-*.swp
-
-# OS
-Thumbs.db
-.DS_Store
-
-# Project
-logs/
-*.log
-data/CarParkPos
-data/*.db
-data/*.sqlite
-docs/diagrams/*.drawio.bkp
-```
+- `parking.db` ada di `.gitignore` (tidak di-commit) karena berisi data runtime.
+- Database dibuat otomatis; cukup hapus file untuk reset.
+- `data/` dan `legacy/` tidak ada di proyek saat ini — referensi dari dokumentasi awal.
 
 ---
 

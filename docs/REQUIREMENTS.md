@@ -15,6 +15,7 @@ Setiap requirement diberi kode unik agar bisa dirujuk di laporan TA dan pengujia
 | FR-02 | Sistem melakukan reconnect otomatis bila stream RTSP putus | Wajib |
 | FR-03 | Sistem membuang frame lama (`grab()`) untuk meminimalisir lag | Wajib |
 | FR-04 | URL RTSP dikonfigurasi via file `.env`, bukan hardcoded | Wajib |
+| FR-04a | Admin dapat override manual status slot via dashboard (FREE/FULL/Auto) | Opsional |
 
 ### 1.2 Deteksi Slot
 
@@ -23,6 +24,9 @@ Setiap requirement diberi kode unik agar bisa dirujuk di laporan TA dan pengujia
 | FR-05 | Sistem melakukan preprocessing: grayscale → Gaussian blur → threshold inversi → median blur → dilasi | Wajib |
 | FR-06 | Sistem menghitung rasio piksel non-zero di dalam polygon ROI tiap slot | Wajib |
 | FR-07 | Sistem menentukan status `FREE` atau `FULL` berdasarkan threshold rasio yang dapat dikonfigurasi | Wajib |
+| FR-07a | Sistem menggunakan EMA smoothing untuk mengurangi noise frame-to-frame | Wajib |
+| FR-07b | Sistem menggunakan hysteresis threshold (margin +/-) untuk mencegah flicker status | Wajib |
+| FR-07c | Sistem mendukung adaptive threshold berbasis mean brightness frame | Opsional |
 | FR-08 | Threshold dapat di-tuning per slot (opsional, default global) | Opsional |
 
 ### 1.3 Manajemen Slot (Polygon)
@@ -33,8 +37,8 @@ Setiap requirement diberi kode unik agar bisa dirujuk di laporan TA dan pengujia
 | FR-10 | Admin dapat menggeser titik polygon untuk resize | Wajib |
 | FR-11 | Admin dapat menggeser badan polygon untuk pindah lokasi | Wajib |
 | FR-12 | Admin dapat menghapus polygon dengan right-click | Wajib |
-| FR-13 | Polygon tersimpan di tabel MySQL `slots` (bukan file pickle) | Wajib |
-| FR-14 | Polygon dimuat ulang otomatis saat detection engine start | Wajib |
+| FR-13 | Polygon tersimpan di tabel `slots` (SQLite, bukan file pickle) | Wajib |
+| FR-14 | Polygon dimuat ulang otomatis saat detection engine start (cache dengan TTL 5 detik) | Wajib |
 
 ### 1.4 Penyimpanan Data
 
@@ -71,6 +75,7 @@ Setiap requirement diberi kode unik agar bisa dirujuk di laporan TA dan pengujia
 | FR-33 | Dashboard menerima update via WebSocket tanpa reload | Wajib |
 | FR-34 | Dashboard responsive di layar HP (mobile-first via Tailwind) | Wajib |
 | FR-35 | Halaman admin (opsional) menampilkan daftar slot + tombol delete/edit | Opsional |
+| FR-35a | Dashboard menampilkan tombol override per slot (Bebas/Penuh/Auto) | Wajib |
 
 ### 1.7 Konfigurasi
 
@@ -168,26 +173,21 @@ Setiap requirement diberi kode unik agar bisa dirujuk di laporan TA dan pengujia
 ### 4.2 Python Dependencies (`requirements.txt`)
 
 ```
-opencv-python==4.10.0.84
-numpy==1.26.4
+opencv-python>=4.10.0
+numpy>=1.26.4
 
-fastapi==0.115.0
-uvicorn[standard]==0.32.0
-jinja2==3.1.4
-python-multipart==0.0.12
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
 
-sqlalchemy==2.0.36
-pymysql==1.1.1
-cryptography==43.0.3
+sqlalchemy>=2.0.36
 
-python-dotenv==1.0.1
-pydantic==2.9.2
-pydantic-settings==2.6.1
+python-dotenv>=1.0.1
+pydantic-settings>=2.6.1
 
-websockets==13.1
+websockets>=13.1
 
-pytest==8.3.3
-pytest-asyncio==0.24.0
+pytest>=8.3.3
+pytest-asyncio>=0.24.0
 ```
 
 ### 4.3 Frontend (CDN, no build)
@@ -202,4 +202,4 @@ pytest-asyncio==0.24.0
 - Tidak menggunakan deep learning (YOLO/dll) — fokus image processing klasik.
 - Tidak menggunakan deployment cloud — semua di satu PC lokal.
 - Tidak ada autentikasi user di iterasi pertama (bisa ditambah nanti).
-- Resolusi proses dikunci di 1280×720 untuk konsistensi polygon.
+- Database SQLite (tidak perlu MySQL server).

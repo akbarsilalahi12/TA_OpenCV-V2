@@ -38,7 +38,10 @@ Spesifikasi REST API + WebSocket untuk sistem deteksi slot parkir.
 | GET    | `/api/slots/{id}`    | Detail satu slot |
 | POST   | `/api/slots`         | Buat slot baru |
 | PUT    | `/api/slots/{id}`    | Update polygon slot |
-| DELETE | `/api/slots/{id}`    | Soft delete slot |
+| DELETE | `/api/slots/{id}`    | Soft/hard delete slot |
+| GET    | `/api/slots/overrides` | Daftar manual override aktif |
+| POST   | `/api/slots/{id}/override` | Set manual override |
+| DELETE | `/api/slots/{id}/override` | Hapus manual override |
 | GET    | `/api/status`        | Ringkasan free/full/total |
 | GET    | `/api/history`       | Log historis perubahan status |
 | GET    | `/api/summary`       | Snapshot agregat untuk chart |
@@ -192,9 +195,12 @@ Update polygon dan/atau kode slot.
 
 Soft delete (`is_active = 0`). Slot tidak dihapus permanen agar log historis tetap utuh.
 
-**Response 204** — no content.
+**Query parameter:**
+| Param | Tipe | Default | Catatan |
+|---|---|---|---|
+| `hard` | bool | false | Hard delete (hapus permanen, hati-hati) |
 
-> Untuk hard delete, gunakan parameter `?hard=true` (admin only, hati-hati).
+**Response 204** — no content.
 
 ---
 
@@ -215,7 +221,65 @@ Ringkasan cepat untuk header dashboard.
 
 ---
 
-### 3.9 GET `/api/history`
+### 3.9 GET `/api/slots/overrides`
+
+Daftar semua manual override yang sedang aktif.
+
+**Response 200**
+```json
+{
+  "data": {
+    "1": "FREE",
+    "3": "FULL"
+  }
+}
+```
+
+Map `slot_id → status`. Kosong (`{}`) bila tidak ada override.
+
+---
+
+### 3.10 POST `/api/slots/{id}/override`
+
+Set manual override untuk satu slot. Detection loop akan memakai status ini, mengabaikan hasil deteksi.
+
+**Request body**
+```json
+{
+  "status": "FREE"
+}
+```
+
+**Validasi:**
+- `status`: harus `"FREE"` atau `"FULL"`.
+
+**Response 200**
+```json
+{
+  "slot_id": 1,
+  "manual_status": "FREE"
+}
+```
+
+**Response 404** — slot tidak ditemukan.
+
+---
+
+### 3.11 DELETE `/api/slots/{id}/override`
+
+Hapus manual override. Detection loop kembali ke status hasil deteksi otomatis.
+
+**Response 200**
+```json
+{
+  "slot_id": 1,
+  "manual_status": null
+}
+```
+
+---
+
+### 3.12 GET `/api/history`
 
 Log historis perubahan status.
 
@@ -255,7 +319,7 @@ Log historis perubahan status.
 
 ---
 
-### 3.10 GET `/api/summary`
+### 3.13 GET `/api/summary`
 
 Data agregat untuk chart historis.
 
@@ -280,7 +344,7 @@ Data agregat untuk chart historis.
 
 ---
 
-### 3.11 WebSocket `/ws/slots`
+### 3.14 WebSocket `/ws/slots`
 
 Push realtime perubahan status slot.
 
@@ -341,17 +405,24 @@ ws.onmessage = (e) => {
 
 ### 4.1 cURL — list slot
 ```bash
-curl http://192.168.18.50:8000/api/slots
+curl http://192.168.x.x:8000/api/slots
 ```
 
 ### 4.2 cURL — buat slot baru
 ```bash
-curl -X POST http://192.168.18.50:8000/api/slots \
+curl -X POST http://192.168.x.x:8000/api/slots \
   -H "Content-Type: application/json" \
   -d '{"slot_code":"B1","polygon":[[100,300],[220,300],[220,360],[100,360]]}'
 ```
 
-### 4.3 JavaScript — fetch status & render
+### 4.3 cURL — set manual override
+```bash
+curl -X POST http://192.168.x.x:8000/api/slots/1/override \
+  -H "Content-Type: application/json" \
+  -d '{"status":"FREE"}'
+```
+
+### 4.4 JavaScript — fetch status & render
 ```js
 async function loadStatus() {
   const res = await fetch('/api/status');
@@ -362,7 +433,7 @@ async function loadStatus() {
 loadStatus();
 ```
 
-### 4.4 JavaScript — chart historis
+### 4.5 JavaScript — chart historis
 ```js
 const res = await fetch('/api/summary?range=24h&bucket=hour');
 const { data } = await res.json();
@@ -389,7 +460,7 @@ from typing import List, Literal, Optional
 from datetime import datetime
 
 class SlotIn(BaseModel):
-    slot_code: str = Field(..., min_length=1, max_length=20)
+    slot_code: Optional[str] = Field(None, min_length=1, max_length=20)
     polygon: List[List[int]] = Field(..., min_length=3)
 
 class SlotUpdate(BaseModel):
@@ -398,6 +469,7 @@ class SlotUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 class SlotOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: int
     slot_code: str
     polygon: List[List[int]]
@@ -407,12 +479,19 @@ class SlotOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-class StatusSummary(BaseModel):
+class StatusSummaryOut(BaseModel):
     total_slot: int
     free_slot: int
     full_slot: int
     occupancy_rate: float
     as_of: datetime
+
+class HealthOut(BaseModel):
+    status: str = "ok"
+    rtsp_connected: bool
+    db_connected: bool
+    fps: float
+    uptime_seconds: int
 ```
 
 ---
