@@ -21,6 +21,10 @@ logs/
 data/*.db
 data/*.sqlite
 docs/diagrams/*.drawio.bkp
+*.db
+*.db-shm
+*.db-wal
+*.docx
 
 # Pytest
 .pytest_cache/

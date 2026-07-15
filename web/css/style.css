@@ -17,6 +17,14 @@
   background: transparent;
 }
 
+/* Override button transitions */
+.btn-override {
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+.btn-override:active {
+  transform: scale(0.95);
+}
+
 /* Avoid flicker pada video stream saat reconnect */
 #video {
   background-color: #000;

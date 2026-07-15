@@ -4,6 +4,7 @@ const $ = (sel) => document.querySelector(sel);
 
 const state = {
   slots: new Map(),  // slot_id -> { slot_code, status, ratio }
+  overrides: new Map(), // slot_id -> "FREE" | "FULL"
   chart: null,
   range: "24h",
 };
@@ -42,11 +43,20 @@ function slotCardHtml(slot) {
     : "bg-rose-500/10 border-rose-500/40 text-rose-200";
   const label = slot.status || "-";
   const ratio = (slot.ratio ?? 0).toFixed?.(2) ?? "0.00";
+  const hasOverride = state.overrides.has(slot.slot_id);
+  const overrideStatus = state.overrides.get(slot.slot_id);
+  const freeActive = hasOverride && overrideStatus === "FREE" ? "ring-2 ring-emerald-400" : "";
+  const fullActive = hasOverride && overrideStatus === "FULL" ? "ring-2 ring-rose-400" : "";
   return `
     <div class="slot-card border ${cls} rounded-lg px-2 py-2 text-center" data-slot-id="${slot.slot_id}">
       <div class="font-semibold text-sm">${slot.slot_code}</div>
-      <div class="text-xs">${label}</div>
+      <div class="text-xs">${label}${hasOverride ? ' <span class="text-[10px] text-amber-400">(manual)</span>' : ""}</div>
       <div class="text-[10px] opacity-70">r=${ratio}</div>
+      <div class="mt-1 flex gap-1 justify-center">
+        <button data-action="free" class="btn-override text-[10px] px-1.5 py-0.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white ${freeActive}">Bebas</button>
+        <button data-action="full" class="btn-override text-[10px] px-1.5 py-0.5 rounded bg-rose-700 hover:bg-rose-600 text-white ${fullActive}">Penuh</button>
+        <button data-action="auto" class="btn-override text-[10px] px-1.5 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-white ${!hasOverride ? "hidden" : ""}">Auto</button>
+      </div>
     </div>
   `;
 }
@@ -78,11 +88,28 @@ function updateSlot(slot_id, patch) {
   renderCounters();
 }
 
+// ============= Overrides =============
+
+async function loadOverrides() {
+  try {
+    const r = await fetch("/api/slots/overrides");
+    const j = await r.json();
+    state.overrides = new Map(
+      Object.entries(j.data || {}).map(([k, v]) => [parseInt(k), v])
+    );
+  } catch {
+    state.overrides = new Map();
+  }
+}
+
 // ============= Fetch awal =============
 
 async function loadSlots() {
   try {
-    const res = await fetch("/api/slots?active_only=true");
+    const [res] = await Promise.all([
+      fetch("/api/slots?active_only=true"),
+      loadOverrides(),
+    ]);
     const j = await res.json();
     state.slots.clear();
     for (const s of j.data) {
@@ -234,6 +261,41 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#range-select").addEventListener("change", (e) => {
     state.range = e.target.value;
     loadChart();
+  });
+
+  // Override buttons — event delegation
+  $("#slot-grid").addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    const card = btn.closest("[data-slot-id]");
+    if (!card) return;
+    const slotId = parseInt(card.dataset.slotId);
+    const action = btn.dataset.action;
+
+    try {
+      if (action === "auto") {
+        await fetch(`/api/slots/${slotId}/override`, { method: "DELETE" });
+        state.overrides.delete(slotId);
+        // Re-render card to remove manual badge, hide Auto btn
+        const el = document.querySelector(`[data-slot-id="${slotId}"]`);
+        if (el) {
+          const tmp = document.createElement("div");
+          tmp.innerHTML = slotCardHtml(state.slots.get(slotId)).trim();
+          el.replaceWith(tmp.firstChild);
+        }
+      } else {
+        const status = action === "free" ? "FREE" : "FULL";
+        await fetch(`/api/slots/${slotId}/override`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        state.overrides.set(slotId, status);
+        updateSlot(slotId, { status }); // updates state, re-renders card, calls renderCounters
+      }
+    } catch (err) {
+      console.error("Override error", err);
+    }
   });
 
   // Refresh chart tiap 60 detik

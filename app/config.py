@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     )
 
     # === RTSP ===
-    rtsp_url: str = "rtsp://admin:L2E1141F@10.134.84.205:554/cam/realmonitor?channel=1&subtype=0"
+    rtsp_url: str = "rtsp://admin:L2E1141F@10.158.200.205:554/cam/realmonitor?channel=1&subtype=0"
 
     # === Detection ===
     detection_threshold: float = 0.22
